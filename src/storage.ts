@@ -143,15 +143,26 @@ export function pidAlive(
 }
 
 async function commandForPid(pid: number): Promise<string> {
-  const process = Bun.spawn(["ps", "-p", String(pid), "-o", "command="], {
+  const argv =
+    process.platform === "win32"
+      ? [
+          "powershell.exe",
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `(Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}').CommandLine`,
+        ]
+      : ["ps", "-p", String(pid), "-o", "command="];
+  const child = Bun.spawn(argv, {
     stdout: "pipe",
     stderr: "ignore",
+    windowsHide: true,
   });
   const [command, exitCode] = await Promise.all([
-    new Response(process.stdout).text(),
-    process.exited,
+    new Response(child.stdout).text(),
+    child.exited,
   ]);
-  if (exitCode !== 0) throw new Error(`ps exited ${exitCode}`);
+  if (exitCode !== 0) throw new Error(`${argv[0]} exited ${exitCode}`);
   return command.trim();
 }
 

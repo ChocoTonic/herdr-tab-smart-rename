@@ -350,7 +350,7 @@ export function subscribe(
   socketPath: string,
   onEvent: (event: HerdrEvent) => void,
 ): Socket {
-  const socket = net.createConnection(socketPath);
+  const socket = net.createConnection(socketAddress(socketPath));
   let buffer = "";
   socket.setEncoding("utf8");
   socket.on("connect", () => {
@@ -380,4 +380,18 @@ export function subscribe(
     }
   });
   return socket;
+}
+
+export function socketAddress(
+  socketPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (
+    platform !== "win32" ||
+    socketPath.startsWith("\\\\.\\pipe\\") ||
+    socketPath.startsWith("//./pipe/")
+  ) {
+    return socketPath;
+  }
+  return `\\\\.\\pipe\\${socketPath}`;
 }

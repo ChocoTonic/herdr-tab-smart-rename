@@ -19,9 +19,17 @@ function manifestCliCommands(source: string): string[] {
     const encodedArgs = block.match(/^command = \[(.*)\]$/m)?.[1];
     assert.ok(encodedArgs, "plugin action command not found");
     const args = JSON.parse(`[${encodedArgs}]`) as string[];
-    assert.deepEqual(args.slice(0, 3), ["sh", "src/run-bun.sh", "src/cli.ts"]);
-    assert.ok(args[3], "plugin action CLI command not found");
-    commands.push(args[3]);
+    assert.deepEqual(args.slice(0, 7), [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "src/run-bun.ps1",
+      "src/cli.ts",
+    ]);
+    assert.ok(args[7], "plugin action CLI command not found");
+    commands.push(args[7]);
   }
   return commands;
 }
@@ -35,4 +43,13 @@ test("documented CLI actions are registered in the Herdr manifest", async () => 
     (command) => !INTERNAL_COMMANDS.has(command),
   );
   assert.deepEqual(manifestCliCommands(manifest).sort(), documented.sort());
+});
+
+test("manifest declares Windows and uses the PowerShell Bun launcher", async () => {
+  const manifest = await readFile(
+    new URL("../herdr-plugin.toml", import.meta.url),
+    "utf8",
+  );
+  assert.match(manifest, /^platforms = \["windows"\]$/m);
+  assert.doesNotMatch(manifest, /^command = \["sh",/m);
 });

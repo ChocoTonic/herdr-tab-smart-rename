@@ -88,15 +88,71 @@ test("provider config preserves defaults and process-over-file precedence", asyn
   }
 });
 
+test("named providers supply defaults and provider-specific key aliases", async () => {
+  const fixture = await tempConfig();
+  try {
+    assert.deepEqual(
+      await loadProviderConfig({
+        ...fixture.env,
+        SMART_RENAME_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "anthropic-key",
+      }),
+      {
+        provider: "anthropic",
+        baseURL: "https://api.anthropic.com/v1",
+        model: "claude-haiku-4-5",
+        timeoutMs: 45_000,
+        apiKey: "anthropic-key",
+      },
+    );
+    assert.deepEqual(
+      await loadProviderConfig({
+        ...fixture.env,
+        SMART_RENAME_PROVIDER: "deepseek",
+        DEEPSEEK_API_KEY: "deepseek-key",
+      }),
+      {
+        provider: "deepseek",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        timeoutMs: 45_000,
+        apiKey: "deepseek-key",
+      },
+    );
+    assert.equal(
+      (
+        await loadProviderConfig({
+          ...fixture.env,
+          SMART_RENAME_PROVIDER: "claude",
+          ANTHROPIC_API_KEY: "alias-key",
+        })
+      ).apiKey,
+      "alias-key",
+    );
+    await assert.rejects(
+      loadProviderConfig({
+        ...fixture.env,
+        SMART_RENAME_PROVIDER: "unregistered-provider",
+        SMART_RENAME_API_KEY: "generic-key",
+      }),
+      /BASE_URL.*HTTP\(S\)/,
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("private provider and prompt config enforce templates, permissions, and bounds", async () => {
   const fixture = await tempConfig();
   await rm(fixture.root, { recursive: true, force: true });
   try {
     const file = await ensureProviderFile(fixture.env);
     const prompt = await ensureNamingPromptFile(fixture.env);
-    assert.equal((await stat(fixture.root)).mode & 0o777, 0o700);
-    assert.equal((await stat(file)).mode & 0o777, 0o600);
-    assert.equal((await stat(prompt)).mode & 0o777, 0o600);
+    if (process.platform !== "win32") {
+      assert.equal((await stat(fixture.root)).mode & 0o777, 0o700);
+      assert.equal((await stat(file)).mode & 0o777, 0o600);
+      assert.equal((await stat(prompt)).mode & 0o777, 0o600);
+    }
     assert.match(await readFile(file, "utf8"), /SMART_RENAME_MODEL=gpt-5\.6-luna/);
     assert.match(await readFile(prompt, "utf8"), /^# Naming policy/);
     await assert.rejects(loadProviderConfig(fixture.env), /AI key missing.*provider\.env/i);
@@ -214,6 +270,51 @@ test("provider transport uses the provider-compatible output-token parameter", a
   }
 });
 
+test("Anthropic provider uses the native Messages API", async () => {
+  let pathName = "";
+  let apiKey = "";
+  let requestBody: Record<string, unknown> | undefined;
+  const responseText = '{"tab":"Native Claude Output","reason":"transport contract"}';
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      pathName = new URL(request.url).pathname;
+      apiKey = request.headers.get("x-api-key") || "";
+      requestBody = (await request.json()) as Record<string, unknown>;
+      return Response.json({
+        id: "msg_test",
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: responseText }],
+        model: "claude-test",
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 8 },
+      });
+    },
+  });
+  try {
+    const namer = new AiSdkNamer({
+      SMART_RENAME_PROVIDER: "anthropic",
+      SMART_RENAME_BASE_URL: `http://127.0.0.1:${server.port}/v1`,
+      SMART_RENAME_MODEL: "claude-test",
+      ANTHROPIC_API_KEY: "anthropic-test-key",
+      SMART_RENAME_TIMEOUT_MS: "5000",
+    });
+    assert.deepEqual(await namer.suggest(context), {
+      tab: "Native Claude Output",
+      reason: "transport contract",
+    });
+    assert.equal(pathName, "/v1/messages");
+    assert.equal(apiKey, "anthropic-test-key");
+    assert.equal(requestBody?.model, "claude-test");
+    assert.equal(requestBody?.max_tokens, 32_768);
+    assert.notEqual(requestBody?.stream, true);
+  } finally {
+    server.stop(true);
+  }
+});
+
 test("OpenAI request transform preserves native completion-token values", () => {
   assert.deepEqual(
     transformOpenAiRequestBody({ model: "m", max_tokens: 5 }),
@@ -287,13 +388,13 @@ test("manifest uses portable Bun runtime without Pi model coupling", async () =>
   assert.match(manifest, /^version = "0\.1\.1"$/m);
   assert.match(
     manifest,
-    /command = \["bun", "install", "--production", "--frozen-lockfile"\]/,
+    /command = \["powershell\.exe",[^\n]+"src\/run-bun\.ps1", "install", "--production", "--frozen-lockfile"\]/,
   );
   assert.match(
     manifest,
-    /command = \["sh", "src\/run-bun\.sh", "src\/cli\.ts", "start"\]/,
+    /command = \["powershell\.exe",[^\n]+"src\/run-bun\.ps1", "src\/cli\.ts", "start"\]/,
   );
-  assert.doesNotMatch(manifest, /command = \["bun", "src\//);
+  assert.match(manifest, /^platforms = \["windows"\]$/m);
   assert.match(manifest, /id = "provider-config"[\s\S]*placement = "overlay"/);
   assert.match(manifest, /id = "prompt-config"[\s\S]*placement = "overlay"/);
 

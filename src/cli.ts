@@ -92,6 +92,7 @@ async function start(): Promise<void> {
       cwd: root,
       env: process.env,
       detached: true,
+      windowsHide: true,
       stdin: "ignore",
       stdout: logFd,
       stderr: logFd,

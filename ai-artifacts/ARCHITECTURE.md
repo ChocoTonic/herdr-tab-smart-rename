@@ -15,7 +15,7 @@ flowchart LR
     W --> S
     S --> H[Herdr CLI and socket adapter]
     S --> D[Pure naming domain]
-    S --> N[OpenAI-compatible namer]
+    S --> N[Provider-independent namer]
     S --> F[Private state and locks]
     H --> P[Optional Pi session files]
     PC[provider.env] --> N
@@ -35,6 +35,7 @@ flowchart LR
 | `herdr.ts` | Validate Herdr data and manage guarded temporary and final rename writes |
 | `pi-context.ts` | Sample bounded user requests from approved Pi session files |
 | `provider.ts` | Resolve file-based defaults and overrides, reload the naming prompt, call the AI SDK, and validate model output |
+| `provider-registry.ts` | Define named provider defaults, key aliases, transport factories, and provider-specific options |
 | `storage.ts` | Manage state paths, private permissions, atomic files, locks, worker identity, and stale recovery |
 | `text.ts` | Sanitize and bound text before prompts, state messages, and notifications |
 
@@ -50,9 +51,9 @@ flowchart LR
 
 ### AI provider
 
-- protocol: OpenAI-compatible chat completion through Vercel AI SDK
+- protocols: OpenAI-compatible chat completion and native Anthropic Messages through Vercel AI SDK
 - default endpoint and model: OpenAI API with `gpt-5.6-luna`
-- provider defaults: tracked `provider.env.example`
+- provider defaults: named profiles in `provider-registry.ts`; tracked `provider.env.example` selects a profile and exposes overrides
 - user configuration: private `provider.env`, reloaded for every call
 - system prompt: bundled `docs/naming-policy.md`, overridden by private `naming-prompt.md` or `SMART_RENAME_PROMPT_PATH`
 - request: one non-streaming call, 45-second default timeout, one retry, and a 32,768 output-token ceiling
@@ -129,7 +130,7 @@ flowchart TD
 - The 4,500-character context cap limits exposure and cost but can omit older evidence.
 - GPT-5.6 Luna suits short, high-volume naming, while medium reasoning trades some latency for label quality.
 - Editable prompts enable personal naming style but may produce rejected output; schema and label validation remain fixed safety boundaries.
-- Provider configuration is portable across OpenAI-compatible endpoints, but reasoning support varies by provider.
+- Named provider profiles isolate defaults, key aliases, transport selection, and reasoning options; unknown OpenAI-compatible endpoints remain configurable through generic settings.
 - Pi is a context source, not an inference dependency. Smart Rename never reads Pi credentials or starts Pi.
 - One worker serves the local Herdr socket. Named or remote socket discovery is not automatic.
 - Closed ownership records and worker logs are not pruned or rotated.
