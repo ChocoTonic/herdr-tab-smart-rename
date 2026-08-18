@@ -265,6 +265,16 @@ test("provider transport uses the provider-compatible output-token parameter", a
     await openaiNamer.suggest(context);
     assert.equal(requestBody?.max_completion_tokens, 32_768);
     assert.equal(requestBody?.max_tokens, undefined);
+
+    const deepseekNamer = new AiSdkNamer({
+      SMART_RENAME_PROVIDER: "deepseek",
+      SMART_RENAME_BASE_URL: `http://127.0.0.1:${server.port}/v1`,
+      SMART_RENAME_MODEL: "deepseek-v4-flash",
+      DEEPSEEK_API_KEY: "test-key",
+      SMART_RENAME_TIMEOUT_MS: "5000",
+    });
+    await deepseekNamer.suggest(context);
+    assert.deepEqual(requestBody?.thinking, { type: "disabled" });
   } finally {
     server.stop(true);
   }

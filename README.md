@@ -106,6 +106,10 @@ DEEPSEEK_API_KEY=...
 
 `claude` is accepted as an alias for `anthropic`. Because older generated config files contain explicit OpenAI values, remove or update `SMART_RENAME_BASE_URL`, `SMART_RENAME_MODEL`, and `SMART_RENAME_REASONING_EFFORT` when switching an existing installation. New provider-specific defaults apply wherever those fields are absent.
 
+Smart Rename disables DeepSeek thinking mode for its short structured naming
+request. This avoids spending the request timeout on reasoning before the model
+emits its JSON label.
+
 For any other OpenAI-compatible service, set `SMART_RENAME_PROVIDER`, `SMART_RENAME_BASE_URL`, `SMART_RENAME_MODEL`, and `SMART_RENAME_API_KEY`. Kimi's `KIMI_API_KEY` is also recognized for the `kimi-code` provider. Config reloads before every model request.
 
 ### Custom prompt

@@ -88,8 +88,11 @@ export function createProviderModel(
 }
 
 export function providerOptions(config: ProviderRuntimeConfig) {
-  if (!config.reasoningEffort) return undefined;
   const profile = providerProfile(config.provider);
+  if (profile?.id === "deepseek") {
+    return { deepseek: { thinking: { type: "disabled" } } };
+  }
+  if (!config.reasoningEffort) return undefined;
   return profile?.transport === "anthropic"
     ? { anthropic: { effort: config.reasoningEffort } }
     : { openaiCompatible: { reasoningEffort: config.reasoningEffort } };

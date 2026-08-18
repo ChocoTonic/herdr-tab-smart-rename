@@ -57,6 +57,9 @@ asynchronously, so inspect failures with:
 herdr plugin log list --plugin tab-smart-rename --limit 10
 ```
 
+The DeepSeek profile disables thinking mode for these short JSON naming
+requests, keeping responses within the configured timeout.
+
 The provider file is reloaded before every model request. Switching later only
 requires changing `SMART_RENAME_PROVIDER` to `openai`, `anthropic`, `claude`, or
 `deepseek`; restart is unnecessary.
