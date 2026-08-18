@@ -23,6 +23,9 @@ herdr plugin action invoke check-ai --plugin tab-smart-rename
 herdr plugin action invoke start --plugin tab-smart-rename
 ```
 
+For the unpublished multi-provider branch, see
+[Install the multi-provider branch](docs/install-multi-provider.md).
+
 `configure-ai` opens `~/.config/herdr/plugins/config/tab-smart-rename/provider.env`. For the default OpenAI GPT-5.6 Luna setup, add:
 
 ```dotenv
@@ -76,7 +79,7 @@ See the [naming policy](docs/naming-policy.md) for the full contract.
 
 ## Configuration
 
-Provider defaults live in [`provider.env.example`](provider.env.example):
+The generated [`provider.env.example`](provider.env.example) selects OpenAI. Its built-in profile supplies the endpoint, model, and reasoning defaults shown here:
 
 ```dotenv
 SMART_RENAME_PROVIDER=openai
@@ -86,7 +89,21 @@ SMART_RENAME_REASONING_EFFORT=medium
 SMART_RENAME_TIMEOUT_MS=45000
 ```
 
-Use `SMART_RENAME_API_KEY` for another OpenAI-compatible provider. `OPENAI_API_KEY` and Kimi's `KIMI_API_KEY` are also supported when their provider is selected. Config reloads before every model request.
+Named OpenAI, Anthropic/Claude, and DeepSeek profiles include endpoint and model defaults. Pick one and add its normal key:
+
+```dotenv
+# Claude (native Anthropic Messages API)
+SMART_RENAME_PROVIDER=anthropic
+ANTHROPIC_API_KEY=...
+
+# Or DeepSeek (OpenAI-compatible API)
+SMART_RENAME_PROVIDER=deepseek
+DEEPSEEK_API_KEY=...
+```
+
+`claude` is accepted as an alias for `anthropic`. Because older generated config files contain explicit OpenAI values, remove or update `SMART_RENAME_BASE_URL`, `SMART_RENAME_MODEL`, and `SMART_RENAME_REASONING_EFFORT` when switching an existing installation. New provider-specific defaults apply wherever those fields are absent.
+
+For any other OpenAI-compatible service, set `SMART_RENAME_PROVIDER`, `SMART_RENAME_BASE_URL`, `SMART_RENAME_MODEL`, and `SMART_RENAME_API_KEY`. Kimi's `KIMI_API_KEY` is also recognized for the `kimi-code` provider. Config reloads before every model request.
 
 ### Custom prompt
 

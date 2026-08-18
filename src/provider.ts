@@ -1,6 +1,5 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import { parse as parseEnv } from "dotenv";
 import { z } from "zod";
@@ -10,6 +9,12 @@ import {
   validateTabLabel,
 } from "./domain.ts";
 import { sanitizeText } from "./text.ts";
+import {
+  createProviderModel,
+  providerApiKeyEnvNames,
+  providerOptions,
+  providerProfile,
+} from "./provider-registry.ts";
 
 const PROVIDER_ENV_BYTES = 16 * 1024;
 const NAMING_PROMPT_BYTES = 32 * 1024;
@@ -25,8 +30,16 @@ const ProviderConfigSchema = z.object({
   baseURL: z
     .url()
     .refine((value) => {
-      const url = new URL(value);
-      return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password;
+      try {
+        const url = new URL(value);
+        return (
+          ["http:", "https:"].includes(url.protocol) &&
+          !url.username &&
+          !url.password
+        );
+      } catch {
+        return false;
+      }
     })
     .transform((value) => value.replace(/\/$/, "")),
   model: z.string().min(1).refine((value) => !/[\r\n]/.test(value)),
@@ -118,16 +131,13 @@ function providerApiKey(
   processEnv: NodeJS.ProcessEnv,
   fileEnv: Record<string, string>,
 ): string {
-  const providerKey =
-    provider === "openai"
-      ? "OPENAI_API_KEY"
-      : provider === "kimi-code"
-        ? "KIMI_API_KEY"
-        : null;
+  const providerKeys = providerApiKeyEnvNames(provider);
   return (
     processEnv.SMART_RENAME_API_KEY ||
     fileEnv.SMART_RENAME_API_KEY ||
-    (providerKey ? processEnv[providerKey] || fileEnv[providerKey] : "") ||
+    providerKeys
+      .map((name) => processEnv[name] || fileEnv[name])
+      .find(Boolean) ||
     ""
   );
 }
@@ -177,10 +187,12 @@ export async function loadProviderConfig(
     readProviderEnv(providerEnvPath(env)),
   ]);
   const provider = pick(env, fileEnv, defaults, "SMART_RENAME_PROVIDER");
+  const profile = providerProfile(provider);
   const configuredReasoning =
     env.SMART_RENAME_REASONING_EFFORT || fileEnv.SMART_RENAME_REASONING_EFFORT;
   const reasoningEffort =
     configuredReasoning ||
+    profile?.defaultReasoningEffort ||
     (provider === defaults.SMART_RENAME_PROVIDER
       ? defaults.SMART_RENAME_REASONING_EFFORT
       : "");
@@ -188,8 +200,16 @@ export async function loadProviderConfig(
     env.SMART_RENAME_PROMPT_PATH || fileEnv.SMART_RENAME_PROMPT_PATH;
   const input = {
     provider,
-    baseURL: pick(env, fileEnv, defaults, "SMART_RENAME_BASE_URL"),
-    model: pick(env, fileEnv, defaults, "SMART_RENAME_MODEL"),
+    baseURL:
+      env.SMART_RENAME_BASE_URL ||
+      fileEnv.SMART_RENAME_BASE_URL ||
+      profile?.defaultBaseURL ||
+      "",
+    model:
+      env.SMART_RENAME_MODEL ||
+      fileEnv.SMART_RENAME_MODEL ||
+      profile?.defaultModel ||
+      "",
     timeoutMs: Number(pick(env, fileEnv, defaults, "SMART_RENAME_TIMEOUT_MS")),
     ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(configuredPrompt
@@ -267,30 +287,14 @@ export function transformOpenAiRequestBody(
 }
 
 async function completeWithAiSdk(request: CompletionRequest): Promise<string> {
-  const provider = createOpenAICompatible({
-    name: request.config.provider,
-    baseURL: request.config.baseURL,
-    apiKey: request.config.apiKey,
-    ...(request.config.provider === "openai"
-      ? {
-          transformRequestBody: transformOpenAiRequestBody,
-        }
-      : {}),
-  });
+  const model = createProviderModel(request.config, transformOpenAiRequestBody);
+  const options = providerOptions(request.config);
   const result = await generateText({
-    model: provider(request.config.model),
+    model,
     system: request.system,
     prompt: `Suggest one label from this sanitized context:\n${JSON.stringify(request.context)}`,
     maxOutputTokens: request.maxOutputTokens,
-    ...(request.config.reasoningEffort
-      ? {
-          providerOptions: {
-            openaiCompatible: {
-              reasoningEffort: request.config.reasoningEffort,
-            },
-          },
-        }
-      : {}),
+    ...(options ? { providerOptions: options } : {}),
     maxRetries: request.maxRetries,
     abortSignal: request.abortSignal,
   });

@@ -88,6 +88,60 @@ test("provider config preserves defaults and process-over-file precedence", asyn
   }
 });
 
+test("named providers supply defaults and provider-specific key aliases", async () => {
+  const fixture = await tempConfig();
+  try {
+    assert.deepEqual(
+      await loadProviderConfig({
+        ...fixture.env,
+        SMART_RENAME_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "anthropic-key",
+      }),
+      {
+        provider: "anthropic",
+        baseURL: "https://api.anthropic.com/v1",
+        model: "claude-haiku-4-5",
+        timeoutMs: 45_000,
+        apiKey: "anthropic-key",
+      },
+    );
+    assert.deepEqual(
+      await loadProviderConfig({
+        ...fixture.env,
+        SMART_RENAME_PROVIDER: "deepseek",
+        DEEPSEEK_API_KEY: "deepseek-key",
+      }),
+      {
+        provider: "deepseek",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        timeoutMs: 45_000,
+        apiKey: "deepseek-key",
+      },
+    );
+    assert.equal(
+      (
+        await loadProviderConfig({
+          ...fixture.env,
+          SMART_RENAME_PROVIDER: "claude",
+          ANTHROPIC_API_KEY: "alias-key",
+        })
+      ).apiKey,
+      "alias-key",
+    );
+    await assert.rejects(
+      loadProviderConfig({
+        ...fixture.env,
+        SMART_RENAME_PROVIDER: "unregistered-provider",
+        SMART_RENAME_API_KEY: "generic-key",
+      }),
+      /BASE_URL.*HTTP\(S\)/,
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("private provider and prompt config enforce templates, permissions, and bounds", async () => {
   const fixture = await tempConfig();
   await rm(fixture.root, { recursive: true, force: true });
@@ -209,6 +263,51 @@ test("provider transport uses the provider-compatible output-token parameter", a
     await openaiNamer.suggest(context);
     assert.equal(requestBody?.max_completion_tokens, 32_768);
     assert.equal(requestBody?.max_tokens, undefined);
+  } finally {
+    server.stop(true);
+  }
+});
+
+test("Anthropic provider uses the native Messages API", async () => {
+  let pathName = "";
+  let apiKey = "";
+  let requestBody: Record<string, unknown> | undefined;
+  const responseText = '{"tab":"Native Claude Output","reason":"transport contract"}';
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      pathName = new URL(request.url).pathname;
+      apiKey = request.headers.get("x-api-key") || "";
+      requestBody = (await request.json()) as Record<string, unknown>;
+      return Response.json({
+        id: "msg_test",
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: responseText }],
+        model: "claude-test",
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 8 },
+      });
+    },
+  });
+  try {
+    const namer = new AiSdkNamer({
+      SMART_RENAME_PROVIDER: "anthropic",
+      SMART_RENAME_BASE_URL: `http://127.0.0.1:${server.port}/v1`,
+      SMART_RENAME_MODEL: "claude-test",
+      ANTHROPIC_API_KEY: "anthropic-test-key",
+      SMART_RENAME_TIMEOUT_MS: "5000",
+    });
+    assert.deepEqual(await namer.suggest(context), {
+      tab: "Native Claude Output",
+      reason: "transport contract",
+    });
+    assert.equal(pathName, "/v1/messages");
+    assert.equal(apiKey, "anthropic-test-key");
+    assert.equal(requestBody?.model, "claude-test");
+    assert.equal(requestBody?.max_tokens, 32_768);
+    assert.notEqual(requestBody?.stream, true);
   } finally {
     server.stop(true);
   }
