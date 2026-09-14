@@ -88,7 +88,7 @@ Known Direct providers are defined in a registry that can supply endpoint, model
 | Profile | Default endpoint | Default model | Key variable |
 | --- | --- | --- | --- |
 | `openai` (default) | `https://api.openai.com/v1` | `gpt-5.6-luna` | `OPENAI_API_KEY` |
-| `deepseek` | `https://api.deepseek.com` | `deepseek-v4-flash` | `DEEPSEEK_API_KEY` |
+| `deepseek` | `https://api.deepseek.com` | `deepseek-flash` | `DEEPSEEK_API_KEY` |
 
 | Setting | Purpose |
 | --- | --- |

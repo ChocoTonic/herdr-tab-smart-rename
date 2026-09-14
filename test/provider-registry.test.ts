@@ -34,7 +34,7 @@ test("DeepSeek is a registered OpenAI-compatible provider profile", () => {
     id: "deepseek",
     label: "DeepSeek",
     defaultBaseURL: "https://api.deepseek.com",
-    defaultModel: "deepseek-v4-flash",
+    defaultModel: "deepseek-flash",
     apiKeyEnvNames: ["DEEPSEEK_API_KEY"],
   });
 });

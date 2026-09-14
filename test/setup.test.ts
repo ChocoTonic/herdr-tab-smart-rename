@@ -316,7 +316,7 @@ test("Direct wizard derives DeepSeek suggestions from its provider profile", asy
     "direct",
     "deepseek",
     "https://api.deepseek.com",
-    "deepseek-v4-flash",
+    "deepseek-flash",
     "deepseek-secret",
     "none",
     "45000",
@@ -341,7 +341,7 @@ test("Direct wizard derives DeepSeek suggestions from its provider profile", asy
   );
   assert.equal(
     (textCalls[2]?.options as { defaultValue?: string }).defaultValue,
-    "deepseek-v4-flash",
+    "deepseek-flash",
   );
   assert.equal(
     (

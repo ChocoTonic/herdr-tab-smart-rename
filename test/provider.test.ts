@@ -111,7 +111,7 @@ test("DeepSeek profile supplies defaults and its standard key alias", async () =
       {
         provider: "deepseek",
         baseURL: "https://api.deepseek.com",
-        model: "deepseek-v4-flash",
+        model: "deepseek-flash",
         timeoutMs: 45_000,
         apiKey: "deepseek-key",
       },

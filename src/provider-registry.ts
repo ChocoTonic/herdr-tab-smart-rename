@@ -29,7 +29,7 @@ const DIRECT_PROVIDER_PROFILES: readonly DirectProviderProfile[] = [
     id: "deepseek",
     label: "DeepSeek",
     defaultBaseURL: "https://api.deepseek.com",
-    defaultModel: "deepseek-v4-flash",
+    defaultModel: "deepseek-flash",
     apiKeyEnvNames: ["DEEPSEEK_API_KEY"],
   },
 ] as const;
