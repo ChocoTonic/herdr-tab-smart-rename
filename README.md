@@ -14,7 +14,16 @@ https://github.com/user-attachments/assets/c9d12c33-e458-4a29-986c-c403d64aff02
 
 ## Quick start
 
-Requires Herdr 0.7.0+ and Bun 1.1.34+.
+Requires Herdr 0.7.0+ and Node.js 24.22.1 or later in the 24 LTS line.
+Production actions use Node's patched eMudhra CA bundle and run TypeScript
+directly. Install dependencies with `npm ci --omit=dev --ignore-scripts`.
+Bun is used only as an offline development test runner and loopback mock server;
+it does not run the plugin or make production AI requests. Run `npm test` with
+patched Node and Bun installed to verify both runtime and unit tests.
+
+After upgrading an existing installation, run **stop**, then **start** to replace
+the old Bun worker. Start refuses to reuse a worker without patched Node runtime
+metadata.
 
 ```sh
 herdr plugin install iurysza/herdr-tab-smart-rename
@@ -118,7 +127,7 @@ Provider keys stay in Herdr's private plugin config and never enter Smart Rename
 - Worker stopped: `herdr plugin action invoke start --plugin tab-smart-rename`
 - Config invalid: run `configure-ai`, then `check-ai`.
 - Authentication fails: ensure the key matches the configured endpoint and model; `check-ai` does not make an API request.
-- Bun is outside Herdr's server `PATH`: runtime actions also check standard Bun and Homebrew locations.
+- Node is outside Herdr's server `PATH`: runtime actions also check `~/.local/bin/node` and standard Homebrew locations. An old Node installation is rejected with an upgrade message.
 - Manual label stays: use `reset-tab` or an explicit rename.
 - Logs: `herdr plugin log list --plugin tab-smart-rename --limit 10`
 

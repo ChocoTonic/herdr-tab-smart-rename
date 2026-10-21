@@ -94,9 +94,12 @@ test("private provider and prompt config enforce templates, permissions, and bou
   try {
     const file = await ensureProviderFile(fixture.env);
     const prompt = await ensureNamingPromptFile(fixture.env);
-    assert.equal((await stat(fixture.root)).mode & 0o777, 0o700);
-    assert.equal((await stat(file)).mode & 0o777, 0o600);
-    assert.equal((await stat(prompt)).mode & 0o777, 0o600);
+    // The plugin supports POSIX hosts; Windows does not expose POSIX mode bits.
+    if (process.platform !== "win32") {
+      assert.equal((await stat(fixture.root)).mode & 0o777, 0o700);
+      assert.equal((await stat(file)).mode & 0o777, 0o600);
+      assert.equal((await stat(prompt)).mode & 0o777, 0o600);
+    }
     assert.match(await readFile(file, "utf8"), /SMART_RENAME_MODEL=gpt-5\.6-luna/);
     assert.match(await readFile(prompt, "utf8"), /^# Naming policy/);
     await assert.rejects(loadProviderConfig(fixture.env), /AI key missing.*provider\.env/i);
@@ -278,20 +281,20 @@ test("namer reloads provider.env and naming-prompt.md, then redacts failures", a
   }
 });
 
-test("manifest uses portable Bun runtime without Pi model coupling", async () => {
+test("manifest uses patched Node runtime without Pi model coupling", async () => {
   const manifest = await readFile(
     new URL("../herdr-plugin.toml", import.meta.url),
     "utf8",
   );
   assert.match(manifest, /^id = "tab-smart-rename"$/m);
-  assert.match(manifest, /^version = "0\.1\.1"$/m);
+  assert.match(manifest, /^version = "0\.1\.2"$/m);
   assert.match(
     manifest,
-    /command = \["bun", "install", "--production", "--frozen-lockfile"\]/,
+    /command = \["sh", "src\/run-node\.sh", "src\/install\.mjs"\]/,
   );
   assert.match(
     manifest,
-    /command = \["sh", "src\/run-bun\.sh", "src\/cli\.ts", "start"\]/,
+    /command = \["sh", "src\/run-node\.sh", "src\/cli\.ts", "start"\]/,
   );
   assert.doesNotMatch(manifest, /command = \["bun", "src\//);
   assert.match(manifest, /id = "provider-config"[\s\S]*placement = "overlay"/);

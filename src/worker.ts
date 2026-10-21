@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { requirePatchedNode } from "./runtime.ts";
 import { appendFile, chmod } from "node:fs/promises";
 import { type Socket } from "node:net";
 import {
@@ -207,4 +208,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-if (import.meta.main) await runWorker();
+if (import.meta.main) {
+  requirePatchedNode();
+  await runWorker();
+}

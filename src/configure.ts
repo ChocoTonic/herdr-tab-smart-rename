@@ -1,5 +1,8 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { exited } from "./process.ts";
 import path from "node:path";
+import { requirePatchedNode } from "./runtime.ts";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import {
   bundledNamingPrompt,
@@ -47,13 +50,12 @@ export async function ensureNamingPromptFile(
 
 async function openEditor(file: string, env: NodeJS.ProcessEnv): Promise<void> {
   const editor = env.VISUAL || env.EDITOR || "vi";
-  const child = Bun.spawn([editor, file], {
+  const child = spawn(editor, [file], {
     env,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
+    stdio: "inherit",
+    windowsHide: true,
   });
-  const exitCode = await child.exited;
+  const exitCode = await exited(child);
   if (exitCode !== 0) throw new Error(`editor exited ${exitCode}`);
 }
 
@@ -76,6 +78,7 @@ function errorCode(error: unknown): string | undefined {
 }
 
 if (import.meta.main) {
+  requirePatchedNode();
   const command = process.argv[2] || "provider";
   const configure = command === "prompt" ? configurePrompt : configureProvider;
   configure().catch((error: unknown) => {

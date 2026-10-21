@@ -1,7 +1,12 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { once as onceEvent } from "node:events";
+import { setTimeout as sleep } from "node:timers/promises";
+import { isPatchedNode } from "./runtime.ts";
 import { chmod, closeSync, openSync } from "node:fs";
 import { chmod as chmodAsync, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { requirePatchedNode } from "./runtime.ts";
 import { type RenameResult } from "./domain.ts";
 import { beginTabProgress, run, snapshot } from "./herdr.ts";
 import { loadNamingPrompt, loadProviderConfig } from "./provider.ts";
@@ -14,7 +19,7 @@ import {
 } from "./storage.ts";
 import { sanitizeText } from "./text.ts";
 
-const root = process.env.HERDR_PLUGIN_ROOT || path.resolve(import.meta.dir, "..");
+const root = process.env.HERDR_PLUGIN_ROOT || path.resolve(import.meta.dirname, "..");
 const workerScript = path.join(root, "src", "worker.ts");
 
 function requireStateDir(): string {
@@ -82,20 +87,23 @@ async function start(): Promise<void> {
   try {
     const existing = await workerInfo(paths.pid, workerScript);
     if (existing) {
+      if (existing.runtime !== "node" || !isPatchedNode({ node: existing.runtimeVersion ?? "0.0.0" })) {
+        throw new Error("An older Smart Rename worker is running. Run stop, then start again to use the patched Node.js runtime.");
+      }
       console.log(`Smart Rename already running (pid ${existing.pid})`);
       return;
     }
 
     const logFd = openSync(paths.log, "a", 0o600);
     chmod(paths.log, 0o600, () => {});
-    const child = Bun.spawn([process.execPath, workerScript], {
+    const child = spawn(process.execPath, [workerScript], {
       cwd: root,
       env: process.env,
       detached: true,
-      stdin: "ignore",
-      stdout: logFd,
-      stderr: logFd,
+      stdio: ["ignore", logFd, logFd],
+      windowsHide: true,
     });
+    await onceEvent(child, "spawn");
     child.unref();
     closeSync(logFd);
     await writeFile(
@@ -103,6 +111,8 @@ async function start(): Promise<void> {
       `${JSON.stringify({
         pid: child.pid,
         script: workerScript,
+        runtime: "node",
+        runtimeVersion: process.versions.node,
         startedAt: new Date().toISOString(),
       })}\n`,
       { mode: 0o600 },
@@ -123,7 +133,7 @@ async function stop(): Promise<void> {
   }
   process.kill(info.pid, "SIGTERM");
   for (let count = 0; count < 30; count += 1) {
-    await Bun.sleep(100);
+    await sleep(100);
     if (!(await workerInfo(paths.pid, workerScript))) {
       console.log("Smart Rename stopped");
       return;
@@ -313,4 +323,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-if (import.meta.main) await main();
+if (import.meta.main) {
+  requirePatchedNode();
+  await main();
+}

@@ -1,3 +1,4 @@
+import { open } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -59,15 +60,22 @@ async function readBoundedText(
   maxBytes: number,
   required = false,
 ): Promise<string | null> {
-  const file = Bun.file(source);
-  if (!(await file.exists())) {
+  let file: Awaited<ReturnType<typeof open>>;
+  try {
+    file = await open(source, "r");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     if (required) throw new Error(`${label} is missing`);
     return null;
   }
-  if (file.size > maxBytes) {
-    throw new Error(`${label} exceeds ${maxBytes / 1024} KiB`);
+  try {
+    if ((await file.stat()).size > maxBytes) {
+      throw new Error(`${label} exceeds ${maxBytes / 1024} KiB`);
+    }
+    return file.readFile("utf8");
+  } finally {
+    await file.close();
   }
-  return file.text();
 }
 
 async function readProviderEnv(
