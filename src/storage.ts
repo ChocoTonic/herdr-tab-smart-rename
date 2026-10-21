@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+import { runProcess } from "./process.ts";
 import { randomUUID } from "node:crypto";
 import {
   chmod,
@@ -38,6 +40,8 @@ const WorkerInfoSchema = z.object({
   pid: z.number().int().positive(),
   script: z.string().min(1),
   startedAt: z.string().min(1),
+  runtime: z.literal("node").optional(),
+  runtimeVersion: z.string().optional(),
 });
 
 const LockOwnerSchema = z.object({
@@ -143,16 +147,7 @@ export function pidAlive(
 }
 
 async function commandForPid(pid: number): Promise<string> {
-  const process = Bun.spawn(["ps", "-p", String(pid), "-o", "command="], {
-    stdout: "pipe",
-    stderr: "ignore",
-  });
-  const [command, exitCode] = await Promise.all([
-    new Response(process.stdout).text(),
-    process.exited,
-  ]);
-  if (exitCode !== 0) throw new Error(`ps exited ${exitCode}`);
-  return command.trim();
+  return runProcess("ps", ["-p", String(pid), "-o", "command="]);
 }
 
 interface WorkerDependencies {
@@ -257,7 +252,7 @@ export async function acquireLock(
       if (Date.now() >= deadline) {
         throw new Error(`timed out waiting for lock: ${lockFile}`);
       }
-      await Bun.sleep(retryMs);
+      await sleep(retryMs);
     }
   }
 }

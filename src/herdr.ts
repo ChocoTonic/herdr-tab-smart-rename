@@ -1,3 +1,4 @@
+import { runProcess } from "./process.ts";
 import net, { type Socket } from "node:net";
 import { z } from "zod";
 import { type PaneContext } from "./domain.ts";
@@ -136,33 +137,7 @@ export async function run(
   args: string[],
   options: RunOptions = {},
 ): Promise<string> {
-  const child = Bun.spawn([command, ...args], {
-    env: options.env ?? process.env,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    child.kill();
-  }, options.timeout ?? 10_000);
-  try {
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
-    if (timedOut) throw new Error(`${command} timed out`);
-    if (exitCode !== 0) {
-      throw new Error(stderr.trim() || `${command} exited ${exitCode}`);
-    }
-    if (Buffer.byteLength(stdout) > (options.maxBuffer ?? 2 * 1024 * 1024)) {
-      throw new Error(`${command} output exceeded buffer`);
-    }
-    return stdout.trim();
-  } finally {
-    clearTimeout(timer);
-  }
+  return runProcess(command, args, options);
 }
 
 async function herdrJson(

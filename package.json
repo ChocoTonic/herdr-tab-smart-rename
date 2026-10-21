@@ -1,16 +1,16 @@
 {
   "name": "herdr-tab-smart-rename",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Context-aware workspace and task tab names for Herdr",
   "type": "module",
   "private": true,
-  "packageManager": "bun@1.1.34",
+  "packageManager": "npm@11.13.0",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "bun test"
+    "test": "node --test test/node-runtime.test.mjs && node scripts/test-unit.mjs"
   },
   "engines": {
-    "bun": ">=1.1.34"
+    "node": ">=24.22.1 <25"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.9",

@@ -74,23 +74,23 @@ test("CLI dispatch routes actions without executing on import", async () => {
   );
 });
 
-test("Bun launcher survives Herdr's minimal server PATH", async () => {
+test.skipIf(process.platform === "win32")("Node launcher survives Herdr's minimal server PATH", async () => {
   const home = await mkdtemp(path.join(os.tmpdir(), "tab-smart-rename-bun-"));
-  const bunDir = path.join(home, ".bun", "bin");
-  const fakeBun = path.join(bunDir, "bun");
+  const bunDir = path.join(home, ".local", "bin");
+  const fakeBun = path.join(bunDir, "node");
   try {
     await mkdir(bunDir, { recursive: true });
-    await writeFile(fakeBun, "#!/bin/sh\nprintf 'fake-bun:%s\\n' \"$*\"\n");
+    await writeFile(fakeBun, "#!/bin/sh\nprintf 'fake-node:%s\\n' \"$*\"\n");
     await chmod(fakeBun, 0o700);
     const child = Bun.spawn(
       [
         "/bin/sh",
-        path.resolve(import.meta.dir, "../src/run-bun.sh"),
+        path.resolve(import.meta.dir, "../src/run-node.sh"),
         "src/cli.ts",
         "status",
       ],
       {
-        env: { HOME: home, PATH: "/usr/bin:/bin" },
+        env: { HOME: home, PATH: path.join(home, "empty-bin") },
         stdout: "pipe",
         stderr: "pipe",
       },
@@ -101,13 +101,13 @@ test("Bun launcher survives Herdr's minimal server PATH", async () => {
       child.exited,
     ]);
     assert.equal(exitCode, 0, stderr);
-    assert.equal(stdout.trim(), "fake-bun:src/cli.ts status");
+    assert.equal(stdout.trim(), "fake-node:src/cli.ts status");
   } finally {
     await rm(home, { recursive: true, force: true });
   }
 });
 
-test("locks recover dead owners and workers require exact Bun scripts", async () => {
+test("locks recover dead owners and workers require exact worker scripts", async () => {
   assert.equal(pidAlive(42, () => true), true);
   assert.equal(
     pidAlive(42, () => {
@@ -133,7 +133,7 @@ test("locks recover dead owners and workers require exact Bun scripts", async ()
     );
     const dependencies = {
       isAlive: () => true,
-      commandForPid: async () => `bun ${expected}`,
+      commandForPid: async () => `node ${expected}`,
     };
     assert.equal((await workerInfo(pidFile, expected, dependencies))?.pid, 42);
     assert.equal(
